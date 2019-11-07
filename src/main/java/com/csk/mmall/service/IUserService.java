@@ -9,7 +9,7 @@ public interface IUserService {
 
     ServerResponse<User> checkValid(String str, String type);
 
-    ServerResponse<User> regist(User user);
+    ServerResponse<String> regist(User user);
 
     ServerResponse<String> selectQuestion(String username);
 

@@ -37,6 +37,12 @@ public class UserController {
         return ServerResponse.createBySuccess();
     }
 
+    @RequestMapping(value = "regist.do",method = RequestMethod.POST)
+    @ResponseBody
+    public ServerResponse<String> regist(User user){
+        return userService.regist(user);
+    }
+
     @RequestMapping(value = "checkValid.do", method = RequestMethod.POST)
     @ResponseBody
     public ServerResponse<User> checkValid(String str, String type) {

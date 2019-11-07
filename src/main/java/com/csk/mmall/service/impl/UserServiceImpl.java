@@ -75,7 +75,7 @@ public class UserServiceImpl implements IUserService {
      * @return
      */
     @Override
-    public ServerResponse<User> regist(User user) {
+    public ServerResponse<String> regist(User user) {
         ServerResponse validResponse = this.checkValid(user.getUsername(), Const.USERNAME);
         if (!validResponse.isSuccess()) {
             return validResponse;
@@ -86,6 +86,7 @@ public class UserServiceImpl implements IUserService {
         }
         user.setRole(Const.Role.ROLE_CUSTOMER);
         String md5Password = MD5Util.MD5EncodeUtf8(user.getPassword());
+        user.setPassword(md5Password);
         int resultCount = userMapper.insert(user);
         if (resultCount == 0) {
             return ServerResponse.createByErrorMessage("注册失败！");
