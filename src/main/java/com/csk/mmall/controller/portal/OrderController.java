@@ -29,7 +29,7 @@ public class OrderController {
 
     @RequestMapping("pay.do")
     @ResponseBody
-    public ServerResponse pay(Integer orderId, HttpSession session, HttpServletRequest request) {
+    public ServerResponse pay(Long orderId, HttpSession session, HttpServletRequest request) {
         User user = (User) session.getAttribute(Const.CURRENT_USER);
         if (user == null) {
             return ServerResponse.createByErrorMessage("用户未登录！");
@@ -47,5 +47,6 @@ public class OrderController {
             String value = map.get(name);
             System.out.println("key：" + name + "，value：" + value);
         }
+        return null;
     }
 }

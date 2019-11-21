@@ -60,21 +60,21 @@ public class OrderServiceImpl implements IOrderService {
     private OrderMapper orderMapper;
 
     @Override
-    public ServerResponse pay(Integer orderId, Integer id, String path) {
+    public ServerResponse pay(Long orderId, Integer userId, String path) {
 
-        Order order = orderMapper.selectByPrimaryKey(orderId);
+        Order order = orderMapper.selectByOrderAndUserId(orderId, userId);
         if (order == null) {
             return ServerResponse.createByErrorMessage("订单不存在！");
         }
 
         Map<String, String> resultMap = Maps.newHashMap();
-        resultMap.put("orderNo", String.valueOf(order.getOrderNo());
+        resultMap.put("orderNo", String.valueOf(order.getOrderNo()));
         // (必填) 商户网站订单系统中唯一订单号，64个字符以内，只能包含字母、数字、下划线，
         // 需保证商户系统端不能重复，建议通过数据库sequence生成，
         String outTradeNo = String.valueOf(order.getOrderNo());
 
         // (必填) 订单标题，粗略描述用户的支付目的。如“xxx品牌xxx门店消费”
-        String subject = "mmall_csl扫码支付，订单号：" + order.getOrderNo();
+        String subject = "mmall_csk扫码支付，订单号：" + order.getOrderNo();
 
         // (必填) 订单总金额，单位为元，不能超过1亿元
         // 如果同时传入了【打折金额】,【不可打折金额】,【订单总金额】三者,则必须满足如下条件:【订单总金额】=【打折金额】+【不可打折金额】
@@ -121,7 +121,7 @@ public class OrderServiceImpl implements IOrderService {
                 .setUndiscountableAmount(undiscountableAmount).setSellerId(sellerId).setBody(body)
                 .setOperatorId(operatorId).setStoreId(storeId).setExtendParams(extendParams)
                 .setTimeoutExpress(timeoutExpress)
-                .setNotifyUrl("http://www.test-notify-url.com")//支付宝服务器主动通知商户服务器里指定的页面http路径,根据需要设置
+                .setNotifyUrl(PropertiesUtil.getProperty("alipay.callback.url"))//支付宝服务器主动通知商户服务器里指定的页面http路径,根据需要设置
                 .setGoodsDetailList(goodsDetailList);
 
         AlipayF2FPrecreateResult result = tradeService.tradePrecreate(builder);
@@ -145,11 +145,11 @@ public class OrderServiceImpl implements IOrderService {
                 ZxingUtils.getQRCodeImge(response.getQrCode(), 256, qrPath);
 
                 File targetFile = new File(path,qrFileName);
-                try {
-                    FtpUtil.uploadFile(Lists.newArrayList(targetFile));
-                } catch (IOException e) {
-                    logger.error("上传二维码异常",e);
-                }
+//                try {
+//                    FtpUtil.uploadFile(Lists.newArrayList(targetFile));
+//                } catch (IOException e) {
+//                    logger.error("上传二维码异常",e);
+//                }
                 logger.info("qrPath:" + qrPath);
                 String qrUrl = PropertiesUtil.getProperty("ftp.server.http.prefix")+targetFile.getName();
                 resultMap.put("qrUrl",qrUrl);
