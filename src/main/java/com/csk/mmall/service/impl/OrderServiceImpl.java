@@ -12,10 +12,17 @@ import com.alipay.demo.trade.model.result.AlipayF2FPrecreateResult;
 import com.alipay.demo.trade.service.AlipayTradeService;
 import com.alipay.demo.trade.service.impl.AlipayTradeServiceImpl;
 import com.alipay.demo.trade.utils.ZxingUtils;
+import com.csk.mmall.common.Const;
 import com.csk.mmall.common.ServerResponse;
+import com.csk.mmall.dao.OrderItemMapper;
 import com.csk.mmall.dao.OrderMapper;
+import com.csk.mmall.dao.PayInfoMapper;
 import com.csk.mmall.pojo.Order;
+import com.csk.mmall.pojo.OrderItem;
+import com.csk.mmall.pojo.PayInfo;
 import com.csk.mmall.service.IOrderService;
+import com.csk.mmall.util.BigDecimalUtil;
+import com.csk.mmall.util.DateUtil;
 import com.csk.mmall.util.FtpUtil;
 import com.csk.mmall.util.PropertiesUtil;
 import com.google.common.collect.Lists;
@@ -58,11 +65,15 @@ public class OrderServiceImpl implements IOrderService {
 
     @Autowired
     private OrderMapper orderMapper;
+    @Autowired
+    private OrderItemMapper orderItemMapper;
+    @Autowired
+    private PayInfoMapper payInfoMapper;
 
     @Override
-    public ServerResponse pay(Long orderId, Integer userId, String path) {
+    public ServerResponse pay(Long orderNo, Integer userId, String path) {
 
-        Order order = orderMapper.selectByOrderAndUserId(orderId, userId);
+        Order order = orderMapper.selectByOrderAndUserId(orderNo, userId);
         if (order == null) {
             return ServerResponse.createByErrorMessage("订单不存在！");
         }
@@ -106,14 +117,15 @@ public class OrderServiceImpl implements IOrderService {
 
         // 商品明细列表，需填写购买商品详细信息，
         List<GoodsDetail> goodsDetailList = new ArrayList<GoodsDetail>();
-        // 创建一个商品信息，参数含义分别为商品id（使用国标）、名称、单价（单位为分）、数量，如果需要添加商品类别，详见GoodsDetail
-        GoodsDetail goods1 = GoodsDetail.newInstance("goods_id001", "xxx小面包", 1000, 1);
-        // 创建好一个商品后添加至商品明细列表
-        goodsDetailList.add(goods1);
-
-        // 继续创建并添加第一条商品信息，用户购买的产品为“黑人牙刷”，单价为5.00元，购买了两件
-        GoodsDetail goods2 = GoodsDetail.newInstance("goods_id002", "xxx牙刷", 500, 2);
-        goodsDetailList.add(goods2);
+        // 通过订单号和用户信息查询订单商品信息
+        List<OrderItem> orderItemList = orderItemMapper.getByOrderNoAndUserId(orderNo, userId);
+        for (OrderItem orderItem : orderItemList) {
+            // 创建一个商品信息，参数含义分别为商品id（使用国标）、名称、单价（单位为分）、数量，如果需要添加商品类别
+            GoodsDetail goods = GoodsDetail.newInstance(String.valueOf(orderItem.getProductId()), orderItem.getProductName(),
+                    BigDecimalUtil.mul(orderItem.getCurrentUnitPrice().doubleValue(), new Double(100).doubleValue()).longValue(),
+                    orderItem.getQuantity());
+            goodsDetailList.add(goods);
+        }
 
         // 创建扫码支付请求builder，设置请求参数
         AlipayTradePrecreateRequestBuilder builder = new AlipayTradePrecreateRequestBuilder()
@@ -138,21 +150,15 @@ public class OrderServiceImpl implements IOrderService {
                     folder.mkdirs();
                 }
 
-                // 需要修改为运行机器上的路径
-                //细节细节细节
+                //目前只把二维码保存到项目的upload文件夹下，然后返回图片路径；之后要上传到ftp服务器，返回ftp路径
                 String qrPath = String.format(path+"/qr-%s.png",response.getOutTradeNo());
-                String qrFileName = String.format("qr-%s.png",response.getOutTradeNo());
                 ZxingUtils.getQRCodeImge(response.getQrCode(), 256, qrPath);
-
-                File targetFile = new File(path,qrFileName);
 //                try {
 //                    FtpUtil.uploadFile(Lists.newArrayList(targetFile));
 //                } catch (IOException e) {
 //                    logger.error("上传二维码异常",e);
 //                }
-                logger.info("qrPath:" + qrPath);
-                String qrUrl = PropertiesUtil.getProperty("ftp.server.http.prefix")+targetFile.getName();
-                resultMap.put("qrUrl",qrUrl);
+                resultMap.put("qrUrl",qrPath);
                 return ServerResponse.createBySuccess(resultMap);
             case FAILED:
                 logger.error("支付宝预下单失败!!!");
@@ -164,6 +170,38 @@ public class OrderServiceImpl implements IOrderService {
                 logger.error("不支持的交易状态，交易返回异常!!!");
                 return ServerResponse.createByErrorMessage("不支持的交易状态，交易返回异常!!!");
         }
+    }
+
+    @Override
+    public ServerResponse alipayCallback(Map<String, String> params) {
+        Long orderNo = Long.parseLong(params.get("out_trade_no"));
+        String tradeNo = params.get("trade_no");
+        String tradeStatus = params.get("trade_status");
+        Order order = orderMapper.selectByOrderNo(orderNo);
+        if (order == null) {
+            return ServerResponse.createByErrorMessage("查不到订单信息，忽略回调！");
+        }
+        //如果订单的状态是已付款，说明是重复调用
+        if (order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()) {
+            return ServerResponse.createByErrorMessage("支付宝重复调用！");
+        }
+        if (Const.AlipayCallback.TRADE_STATUS_TRADE_SUCCESS.equals(tradeStatus)) {
+            order.setPaymentTime(DateUtil.strToDate(params.get("gmt_payment"))); //付款时间
+            order.setStatus(Const.OrderStatusEnum.PAID.getCode()); //订单状态
+            orderMapper.updateByPrimaryKeySelective(order);
+        }
+
+        //保存支付信息
+        PayInfo payInfo = new PayInfo();
+        payInfo.setUserId(order.getUserId());
+        payInfo.setOrderNo(order.getOrderNo());
+        payInfo.setPayPlatform(Const.PayPlatformEnum.ALIPAY.getCode());
+        payInfo.setPlatformNumber(tradeNo);
+        payInfo.setPlatformStatus(tradeStatus);
+
+        payInfoMapper.insert(payInfo);
+
+        return ServerResponse.createBySuccess();
     }
 
     // 简单打印应答
