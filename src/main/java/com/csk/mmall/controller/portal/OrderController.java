@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
@@ -23,7 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @description:
+ * @description: 订单模块控制器
  * @author: caishengkai
  * @time: 2019/11/21 11:02
  **/
@@ -35,6 +36,51 @@ public class OrderController {
 
     @Autowired
     private IOrderService orderService;
+
+    @RequestMapping("create.do")
+    @ResponseBody
+    public ServerResponse create(Integer shipping, HttpSession session) {
+        User user = (User) session.getAttribute(Const.CURRENT_USER);
+        if (user == null) {
+            return ServerResponse.createByErrorMessage("用户未登录！");
+        }
+
+        return orderService.createOrder(shipping, user.getId());
+    }
+
+    @RequestMapping("cancel.do")
+    @ResponseBody
+    public ServerResponse cancel(Long orderNo, HttpSession session) {
+        User user = (User) session.getAttribute(Const.CURRENT_USER);
+        if (user == null) {
+            return ServerResponse.createByErrorMessage("用户未登录！");
+        }
+
+        return orderService.cancel(orderNo, user.getId());
+    }
+
+    @RequestMapping("detail.do")
+    @ResponseBody
+    public ServerResponse detail(Long orderNo, HttpSession session) {
+        User user = (User) session.getAttribute(Const.CURRENT_USER);
+        if (user == null) {
+            return ServerResponse.createByErrorMessage("用户未登录！");
+        }
+
+        return orderService.getOrderDeatil(orderNo, user.getId());
+    }
+
+    @RequestMapping("list.do")
+    @ResponseBody
+    public ServerResponse list(@RequestParam(value = "pageNum", defaultValue = "1") int pageNum, @RequestParam(value = "pageSize", defaultValue = "10") int pageSize, HttpSession session) {
+        User user = (User) session.getAttribute(Const.CURRENT_USER);
+        if (user == null) {
+            return ServerResponse.createByErrorMessage("用户未登录！");
+        }
+
+        return orderService.getOrderList(pageNum, pageSize, user.getId());
+    }
+
 
     @RequestMapping("pay.do")
     @ResponseBody
