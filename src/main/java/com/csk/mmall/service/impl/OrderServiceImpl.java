@@ -17,6 +17,7 @@ import com.csk.mmall.pojo.*;
 import com.csk.mmall.service.IOrderService;
 import com.csk.mmall.util.BigDecimalUtil;
 import com.csk.mmall.util.DateUtil;
+import com.csk.mmall.util.FtpUtil;
 import com.csk.mmall.util.PropertiesUtil;
 import com.csk.mmall.vo.OrderItemVo;
 import com.csk.mmall.vo.OrderVo;
@@ -33,6 +34,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 
@@ -418,12 +420,13 @@ public class OrderServiceImpl implements IOrderService {
                 //目前只把二维码保存到项目的upload文件夹下，然后返回图片路径；之后要上传到ftp服务器，返回ftp路径
                 String qrPath = String.format(path+"/qr-%s.png",response.getOutTradeNo());
                 ZxingUtils.getQRCodeImge(response.getQrCode(), 256, qrPath);
-//                try {
-//                    FtpUtil.uploadFile(Lists.newArrayList(targetFile));
-//                } catch (IOException e) {
-//                    logger.error("上传二维码异常",e);
-//                }
-                resultMap.put("qrUrl",qrPath);
+                File targetFile = new File(qrPath);
+                try {
+                    FtpUtil.uploadFile(Lists.newArrayList(targetFile));
+                } catch (IOException e) {
+                    logger.error("上传二维码异常",e);
+                }
+                resultMap.put("qrUrl",PropertiesUtil.getProperty("ftp.server.http.prefix") + targetFile.getName());
                 return ServerResponse.createBySuccess(resultMap);
             case FAILED:
                 logger.error("支付宝预下单失败!!!");
