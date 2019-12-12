@@ -26,9 +26,11 @@ public class UserController {
     @Autowired
     private IUserService userService;
 
-    @RequestMapping(value = "login.do", method = RequestMethod.POST)
+    @RequestMapping(value = "login.do", method = RequestMethod.GET)
     @ResponseBody
     public ServerResponse<User> login(String username, String password, HttpSession session, HttpServletResponse httpServletResponse) {
+        int i = 0;
+        int j = 1/i;
         ServerResponse<User> response = userService.login(username, password);
         if (response.isSuccess()) {
             session.setAttribute(Const.CURRENT_USER, response.getData());
